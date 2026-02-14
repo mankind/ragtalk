@@ -11,3 +11,4 @@ venv/
 tmpdir/
 chroma_db/
 media/
+db.sqlite3

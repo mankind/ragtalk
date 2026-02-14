@@ -13,12 +13,13 @@ from langgraph.graph.message import add_messages
 
 import re  
 from .embeddings import embeddings
-
+from .prompt import MAINPROMPT, BASEPROMPT, SYSTEM_PROMPT
 
 # State Definition
 class RAGState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
-    question: str
+    question: str # The original user input (e.g., "summarize this")
+    expanded_query: str    # The optimized search string (e.g., "executive summary findings...")
     context: List[str]  # Chunks retrieved
     answer: str
     error: str
@@ -50,6 +51,47 @@ async def output_guard_node(state: RAGState):
     """
     return {"answer": redact_pii(state["answer"])}
 
+
+# --- Query Expansion Node ---
+async def query_expansion_node(state: RAGState):
+    """
+    Step 1: Contextual Query Rewriting.
+    Populates state["expanded_query"] for the retriever.
+    """
+
+    # Use your gateway's safe_generate
+    rewrite_prompt = [
+        SystemMessage(content=(
+            "You are a search optimizer. Rewrite the user's question into a standalone "
+            "search query for a vector database. Focus on key technical terms. "
+            "If they ask for a summary, search for 'key findings, conclusions, and objectives'."
+        )),
+        *state.get("messages", []),
+        HumanMessage(content=state["question"])
+    ]
+    
+    try:
+        response = await safe_generate(rewrite_prompt)
+        return {"expanded_query": response.content}
+    except Exception:
+        # Fallback: if expansion fails, use the original question
+        return {"expanded_query": state["question"]}
+
+# --- Retrieve Node ---
+async def retrieve_node(state: RAGState):
+    """
+    Step 2: Uses the expanded_query explicitly from the state.
+    """
+    vector_service = VectorStoreService(embeddings)
+    
+    # We pull the expanded version specifically
+    search_term = state.get("expanded_query") or state["question"]
+    
+    docs = vector_service.search(search_term, k=6)
+    context_chunks = [doc[0].page_content for doc in docs]
+    
+    return {"context": context_chunks}
+
 async def retrieve_node(state: RAGState):
     """
     Node 1: Fetches context from Chroma.
@@ -77,13 +119,8 @@ async def generate_node(state: RAGState):
     """
     context_text = "\n\n".join(state["context"])
     
-    system_prompt = SystemMessage(content=(
-        "You are a professional Document Assistant. "
-        "Answer the question ONLY using the provided context. "
-        "If the answer is not in the context, say 'I cannot find this in the documents.' "
-        f"\n\nCONTEXT:\n{context_text}"
-    ))
-    
+    system_prompt = SystemMessage(content=("{SYSTEM_PROMPT}") )
+
     user_message = HumanMessage(content=state["question"])
 
     # Combine History + System Prompt
@@ -101,13 +138,17 @@ def compile_workflow():
 
     # Define Nodes
     workflow.add_node("pii_pre_check", pii_guard_node)
+    workflow.add_node("expand_query", query_expansion_node) # <--- New Node
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
     workflow.add_node("pii_post_check", output_guard_node)
 
     # Define Edges
     workflow.set_entry_point("pii_pre_check")
-    workflow.add_edge("pii_pre_check", "retrieve")
+    # workflow.add_edge("pii_pre_check", "retrieve")
+    workflow.add_edge("pii_pre_check", "expand_query") # <--- Route to expansion
+    workflow.add_edge("expand_query", "retrieve")     # <--- Then to retrieval
+
     workflow.add_edge("retrieve", "generate")
     workflow.add_edge("generate", "pii_post_check")
     workflow.add_edge("pii_post_check", END)

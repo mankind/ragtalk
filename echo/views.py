@@ -18,6 +18,16 @@ from .rag_engine import rag_graph
 logger = logging.getLogger(__name__)
 
 
+async def index(request):
+    """
+    Landing page: Lists documents and provides upload UI.
+    """
+    # Use sync_to_async to fetch documents
+    documents = await sync_to_async(list)(
+        Document.objects.all().order_by('-created_at')
+    )
+    return render(request, "echo/index.html", {"documents": documents})
+
 @csrf_exempt
 @require_POST
 async def upload_document(request):

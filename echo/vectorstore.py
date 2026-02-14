@@ -35,7 +35,7 @@ class VectorStoreService:
             logger.exception("Failed to persist documents to Chroma")
             raise exc
             
-    def search(self, query: str, k: int = 4, metadata_filter: dict = None):
+    def search(self, query: str, k: int = 5, metadata_filter: dict = None):
         """
         Similarity search returning documents and confidence scores.
         
@@ -52,7 +52,7 @@ class VectorStoreService:
             filter=metadata_filter
         )
 
-    def search_by_vector(self, embedding: list, k: int = 4, metadata_filter: dict = None):
+    def search_by_vector(self, embedding: list, k: int = 5, metadata_filter: dict = None):
         """
         Search using a pre-calculated vector.
         Useful for advanced RAG patterns like HyDE (Hypothetical Document Embeddings).
