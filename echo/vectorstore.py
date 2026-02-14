@@ -8,7 +8,6 @@ import os
 
 logger = logging.getLogger(__name__)
 
-os.environ["CHROMA_TELEMETRY"] = "false"
 
 class VectorStoreService:
     """
