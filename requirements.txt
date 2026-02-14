@@ -1,0 +1,19 @@
+
+
+Django~=5.2
+gunicorn~=25.0
+channels~=4.3
+daphne~=4.2
+pypdf~=6.7
+langchain==0.3.27
+langchain-core==0.3.72
+langchain-anthropic==0.3.5
+langchain-openai==0.3.28
+langchain-community~=0.3.27
+langchain-huggingface~=0.3.1
+langchain-google-genai~=2.1 
+langgraph==1.0.1
+langmem==0.0.30
+langchain-community==0.3.27  # Contains ChromaVectorStore
+chromadb==0.5.5
+pysqlite3-binary

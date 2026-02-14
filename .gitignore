@@ -1,0 +1,13 @@
+*.log
+*.pot
+*.pyc
+__pycache__/
+/staticfiles/
+/media/
+.env
+.env*
+venv/
+/node_modules/
+tmpdir/
+chroma_db/
+media/
