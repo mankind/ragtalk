@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG Document Chat</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 2em auto; line-height: 1.6; }
+        .status-pending { color: orange; }
+        .status-indexed { color: green; font-weight: bold; }
+        .status-failed { color: red; }
+        table { width: 100%; border-collapse: collapse; margin-top: 2em; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        
+        /* Chat UI */
+        #chatContainer { margin-top: 30px; border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #fafafa; }
+        #chatHistory { height: 300px; overflow-y: auto; border: 1px solid #eee; background: white; padding: 10px; margin-bottom: 10px; }
+        .user-msg { color: #2c3e50; font-weight: bold; margin-top: 10px; }
+        .ai-msg { color: #16a085; margin-bottom: 10px; }
+
+        /* Spinner & Thinking Style */
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(0,0,0,.1);
+            border-radius: 50%;
+            border-top-color: #16a085;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #thinkingIndicator { display: none; font-size: 0.85em; color: #7f8c8d; margin-bottom: 5px; align-items: center; }
+    </style>
+</head>
+<body>
+    <h1>📚 RAG Knowledge Base</h1>
+    
+    <!-- Upload Section -->
+    <div style="background: #f4f4f4; padding: 20px; border-radius: 8px;">
+        <h3>Upload New PDF</h3>
+        <input type="file" id="fileInput" accept="application/pdf">
+        <button onclick="uploadFile()">Process Document</button>
+        <p id="uploadStatus"></p>
+    </div>
+
+    <!-- Chat Section -->
+    <div id="chatContainer">
+        <h3>💬 Chat with your Documents</h3>
+
+        <div id="chatHistory"></div>
+        
+        <!-- Thinking Indicator -->
+        <div id="thinkingIndicator">
+            <div class="spinner"></div> <span>Thinking... (Retrieving Context & Checking PII)</span>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="chatInput" placeholder="Ask a question..." style="flex: 1; padding: 8px;">
+            <button id="sendBtn" onclick="sendChatMessage()">Ask</button>
+        </div>
+    </div>
+
+    <!-- Document Library Section -->
+     <h3> Select Document and start asking questions</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Select</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Uploaded</th>
+            </tr>
+        </thead>
+        <tbody id="documentTable">
+            {% for doc in documents %}
+            <tr id="doc-{{ doc.id }}">
+                <td>
+                    {% if doc.processing_status == "INDEXED" %}
+                        <input type="radio" name="activeDocument" value="{{ doc.id }}">
+                    {% endif %}
+                </td>
+                <td>{{ doc.title }}</td>
+                <td class="status-{{ doc.processing_status|lower }}" id="status-{{ doc.id }}">
+                    {{ doc.processing_status }}
+                </td>
+                <td>{{ doc.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/documents/');
+        const chatSocket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
+        let currentResponseElement = null;
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const statusCell = document.getElementById(`status-${data.document_id}`);
+            if (statusCell) {
+                statusCell.innerText = data.type === "document_indexed" ? "INDEXED" : "FAILED";
+                statusCell.className = `status-${statusCell.innerText.toLowerCase()}`;
+            }
+        };
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.text) {
+                // First token received: hide the thinking indicator
+                showThinking(false);
+
+                if (currentResponseElement) {
+                    currentResponseElement.innerText += data.text;
+                    const history = document.getElementById('chatHistory');
+                    history.scrollTop = history.scrollHeight;
+                }
+            }
+        };
+
+        function showThinking(isVisible) {
+            const indicator = document.getElementById('thinkingIndicator');
+            const btn = document.getElementById('sendBtn');
+            const input = document.getElementById('chatInput');
+            
+            indicator.style.display = isVisible ? 'flex' : 'none';
+            btn.disabled = isVisible;
+            if (isVisible) input.blur();
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const history = document.getElementById('chatHistory');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Show UI updates
+            history.innerHTML += `<div class="user-msg">You: ${message}</div>`;
+            const aiId = 'ai-' + Date.now();
+            history.innerHTML += `<div class="ai-msg" id="${aiId}">AI: </div>`;
+            currentResponseElement = document.getElementById(aiId).querySelector('.ai-msg') || document.getElementById(aiId);
+
+            // Trigger "Thinking" state
+            showThinking(true);
+
+            const selectedRadio = document.querySelector('input[name="activeDocument"]:checked');
+            const selectedDoc = selectedRadio ? selectedRadio.value : "";
+
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'thread_id': 'session-' + window.location.host,
+                'document_id': selectedDoc
+            }));
+
+            input.value = '';
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('uploadStatus');
+            if (!fileInput.files[0]) return alert("Please select a PDF.");
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            status.innerText = "Uploading...";
+            
+
+            const response = await fetch('/echo/upload/', { method: 'POST', body: formData });
+
+            if (response.ok) { // This covers 200, 201, 202, etc.
+                if (response.status === 200) {
+                    status.innerText = "Document already exists! Redirecting...";
+                } else {
+                    status.innerText = "Upload accepted. Wait for indexing...";
+                }
+
+                //  Clear file input (shows "No file selected")
+                fileInput.value = "";
+                setTimeout(() => location.reload(), 2000); 
+            } else {
+                const errorData = await response.json();
+                status.innerText = `Upload failed: ${errorData.error || 'Unknown error'}`;
+            }
+        }
+
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+
+        // highlight selected file
+        // Highlight selected document row
+        document.addEventListener('change', function(e) {
+            if (e.target.name === "activeDocument") {
+                // Remove highlight from all rows
+                document.querySelectorAll('#documentTable tr').forEach(row => {
+                    row.style.backgroundColor = '';
+                });
+
+                // Highlight selected row
+                const selectedRow = e.target.closest('tr');
+                if (selectedRow) {
+                    selectedRow.style.backgroundColor = '#e8f8f5';
+                }
+            }
+        });
+
+
+    </script>
+</body>
+</html>

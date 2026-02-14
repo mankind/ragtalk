@@ -45,7 +45,6 @@ from typing import List, AsyncGenerator
 logger = logging.getLogger(__name__)
 
 primary_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, streaming=True)
-#primary_llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0, streaming=True)
 fallback_llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0, streaming=True)
 
 @retry(
