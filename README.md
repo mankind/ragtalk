@@ -174,26 +174,27 @@ The MVP architecture allows for Idempotency when loading files and allows easy v
 State transitions (document lifecycle: uploaded → indexed → queryable)
 
 ----------------------------------------------------------------------
-Table showing some architectural choices
---------------------------------------------------------------------------------------------------
+
+Table showing some architectural choice:
+
 Layer	   Responsibility	                  Logic
 --------------------------------------------------------------------------------------------------
 View	     Gatekeeper	                    Calculates Hash + Checks Existence + Returns 200 or 202.
----------------------------------------------------------------------------------------------------
+
 Model	     Track & manage state	        unique=True on file_hash prevents any race-condition duplicates.
--------------------------------------------------------------------------------------------------------
+
 Task	     Orchestrator	                       ingest_document_background (in tasks.py) bridges Sync/Async.
-------------------------------------------------------------------------------------------------------
+
 Tests	     Validation	                             TransactionTestCase + patch to verify call_count.
------------------------------------------------------------------------------------------------------
+
 VectorStore  interface over vector stores            Easily swap different vector stores
-------------------------------------------------------------------------------------------------------
+
 rag_engine   manages langgraph orchestration          Easy to extend langgarph workflow
------------------------------------------------------------------------------------------------------
+
 DocumentIngestionService  deduplication, chunking    Avoid context poisoning and inefficient query
----------------------------------------------------------------------------------------------------
+
 websocket                  Realtime                  Good for user experience
---------------------------------------------------------------------------------------------------
+
 
 ### What would be required to productionize your solution, make it scalable and deploy it on a hyper-scaler such as AWS / GCP / Azure?
 
