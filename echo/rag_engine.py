@@ -119,7 +119,7 @@ async def generate_node(state: RAGState):
     """
     context_text = "\n\n".join(state["context"])
     
-    system_prompt = SystemMessage(content=("{SYSTEM_PROMPT}") )
+    system_prompt = SystemMessage(content=SYSTEM_PROMPT.format(context_text=context_text))
 
     user_message = HumanMessage(content=state["question"])
 
@@ -127,7 +127,6 @@ async def generate_node(state: RAGState):
     llm_input = [system_prompt] + state["messages"] + [user_message]
     
     # Calls the gateway with retry logic
-    #response = await safe_generate([llm_input, user_message])
     response = await safe_generate(llm_input)
     
     return {"answer": response.content, "messages": [user_message, response]}

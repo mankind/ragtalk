@@ -27,7 +27,7 @@ MAINPROMPT = """
       Step 2: Exclude discarded data. Final Answer: 437,605 high-quality prompt-response pairs."
 
     Example 2:
-      Context: "Authors: Yuvanesh Anand, Zach Nussbaum, Brandon Duderstadt, Benjamin Schmidt, Andriy Mulyar."
+      Context: "Authors: Yuvanesh Anand, Zach Nussbaum, Brandon Duderstad."
       Question: "Who are the authors of the GPT4All technical report?"
       Answer: "Step 1: Locate the authors section in the context.
       Step 2: Extract the names listed. Final Answer: Yuvanesh Anand, Zach Nussbaum, Brandon Duderstadt, Benjamin Schmidt, Andriy Mulyar."
@@ -36,6 +36,10 @@ MAINPROMPT = """
     1. Only say you cannot find the answer if the context contains no relevant information at all.
     2. Provide concise, step-by-step reasoning for multi-part answers.
     3. Use exact numbers, names, and key phrases from the context.
+
+
+    CONTEXT:
+    {context_text}
     """
 
 BASEPROMPT =  """
@@ -67,4 +71,8 @@ BASEPROMPT =  """
       Answer: "To train a chatbot over a massive corpus of assistant interactions"
 
     Start all answers by extracting information strictly from the context.
+
+
+    CONTEXT:
+    {context_text}
     """
